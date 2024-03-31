@@ -28,10 +28,14 @@ RUN pip install --no-cache-dir -r requirement.txt
 # Copy the rest of the project files
 COPY . .
 
-RUN python manage.py migrate
+RUN python3 manage.py makemigrations
+
+RUN python3 manage.py migrate
+
+RUN python3 manage.py create_admin
 
 # Recopilar archivos estáticos
-RUN python manage.py collectstatic --no-input
+RUN python3 manage.py collectstatic --no-input
 
 # COPY /staticfiles /usr/share/nginx/html/staticfiles
 
