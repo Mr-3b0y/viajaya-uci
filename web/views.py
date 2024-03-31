@@ -8,6 +8,7 @@ from django.views.generic import ListView, FormView, TemplateView, UpdateView
 from reservas.models import Agencia, Ruta, Pasaje, Viaje, Viajero
 from django.db.models import Count, F
 from django.utils import timezone
+from datetime import datetime, timedelta
 from .forms import ViajerosForm
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -109,6 +110,20 @@ class ReservasListView(LoginRequiredMixin, ListView):
     context_object_name = "reservas"
     template_name = "web/reservas/lista_reservas.html"
     
+    def get_queryset(self):
+        user = self.request.user
+        fecha_actual = timezone.now()
+        viajes  = Viaje.objects.filter(user=user)
+        for viaje in viajes:
+            diferencia = viaje.pasaje.fecha - fecha_actual
+            if diferencia.days <= 2:
+                viaje.estado = 'proxima'
+                viaje.save()
+            elif viaje.pasaje.fecha < fecha_actual:
+                viaje.estado = 'realizada'
+                viaje.save()
+        return viajes
+    
         
 class CancelarReservaView(LoginRequiredMixin, UpdateView):
     model = Viaje
@@ -117,8 +132,11 @@ class CancelarReservaView(LoginRequiredMixin, UpdateView):
     success_url = reverse_lazy('reservas')
     
     def post(self, request, *args, **kwargs):
-        viaje = Viaje.objects.get(pk=self.kwargs.get('pk'))
-        viaje.estado = 'cancelada'
-        viaje.save()
-        return redirect('reservas')
+        viaje = self.get_object()
+        if viaje.user == request.user:
+            viaje.estado = 'cancelada'
+            viaje.save()
+            return redirect('reservas')
+        else:
+            return redirect('reservas')
     

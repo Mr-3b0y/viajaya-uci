@@ -1,18 +1,43 @@
-FROM python:3.11.8-slim
+FROM python:3.11-slim
 
-RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y python3-pip sqlite3 && \
-    rm -rf /var/lib/apt/lists/*
 
-COPY . /app/
-WORKDIR /app/
+# Install build dependencies and curl
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libssl-dev \
+    libpcre3-dev \
+    curl \
+    nginx \
+    supervisor \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --upgrade pip && \
-    pip3 install -r requirement.txt
 
-RUN python3 manage.py migrate --run-syncdb
-# RUN python3 manage.py collectstatic --noinput
+RUN pip install gunicorn==21.2.0
 
-EXPOSE 8000
+# Configure Nginx
+RUN rm /etc/nginx/sites-enabled/default
+COPY nginx.conf /etc/nginx/sites-available/
+RUN ln -s /etc/nginx/sites-available/nginx.conf /etc/nginx/sites-enabled/
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "configs.wsgi:application"]
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Copy requirements file and install dependencies
+COPY requirement.txt requirement.txt
+RUN pip install --no-cache-dir -r requirement.txt
+
+# Copy the rest of the project files
+COPY . .
+
+RUN python manage.py migrate
+
+# Recopilar archivos estáticos
+RUN python manage.py collectstatic --no-input
+
+# COPY /staticfiles /usr/share/nginx/html/staticfiles
+
+# Expose the server port
+EXPOSE 80
+
+
+# CMD ["gunicorn", "--bind", "0.0.0.0:8000", "configs.wsgi:application"]
+CMD ["/usr/bin/supervisord"]
